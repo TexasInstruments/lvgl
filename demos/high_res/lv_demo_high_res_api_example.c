@@ -25,6 +25,7 @@
  **********************/
 
 static pthread_t audio_thread;
+static pthread_t mqtt_sub_thread;
 static void exit_cb(lv_demo_high_res_api_t * api);
 static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
 static void locked_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
@@ -51,6 +52,7 @@ int playing_now=0;
  *   GLOBAL FUNCTIONS
  **********************/
 extern void *audio_play(void);
+extern void *mqtt_sub_init(void);
 
 
 void lv_demo_high_res_api_example(const char * assets_path, const char * logo_path, const char * slides_path)
@@ -102,6 +104,7 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
         return 1; 
     }
     pthread_create(&audio_thread, NULL, audio_play, NULL);
+    pthread_create(&mqtt_sub_thread, NULL, mqtt_sub_init, api);
 
     /* unlock after being locked for 3 seconds */
     lv_timer_t * locked_timer = lv_timer_create_basic();
