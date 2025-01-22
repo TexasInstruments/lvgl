@@ -28,6 +28,7 @@ static pthread_t audio_thread;
 static pthread_t mqtt_sub_thread;
 static pthread_t clock_thread;
 static pthread_t button_thread;
+static pthread_t led_thread;
 static void exit_cb(lv_demo_high_res_api_t * api);
 static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
 
@@ -42,6 +43,8 @@ static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * 
 /**********************
  *   GLOBAL VARIABLES
  **********************/
+int delay_millis = 1000;
+pthread_mutex_t delay_lock;
 pthread_mutex_t playing_now_lock;
 int playing_now=0;
 
@@ -52,6 +55,7 @@ extern void *audio_play(void);
 extern void *mqtt_sub_init(void);
 extern void *clock_init(void);
 extern void *button_init(void);
+extern void *led_blink(void);
 
 
 void lv_demo_high_res_api_example(const char * assets_path, const char * logo_path, const char * slides_path)
@@ -86,6 +90,10 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     lv_subject_add_observer(&api->subjects.thermostat_target_temperature, output_subject_observer_cb,
                             (void *)"thermostat_target_temperature");
 
+    if (pthread_mutex_init(&delay_lock, NULL) != 0) { 
+        printf("\n mutex init has failed\n"); 
+        return 1; 
+    }
     if (pthread_mutex_init(&playing_now_lock, NULL) != 0) { 
         printf("\n mutex init has failed\n"); 
         return 1; 
@@ -94,6 +102,7 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     pthread_create(&mqtt_sub_thread, NULL, mqtt_sub_init, api);
     pthread_create(&clock_thread, NULL, clock_init, api);
     pthread_create(&button_thread, NULL, button_init, api);
+    pthread_create(&led_thread, NULL, led_blink, NULL);
 }
 
 /**********************
@@ -115,6 +124,13 @@ static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * 
         sprintf(command, "amixer set PCM %d\%\t", lv_subject_get_int(subject));
         printf("%s\n", command);
         error = system(command);
+    }
+    else if(strcmp(subject_name, "main_light_temperature") == 0){
+        int main_light_temp = lv_subject_get_int(subject);
+        float fraction_delay = main_light_temp/20000.0;
+        pthread_mutex_lock(&delay_lock);
+        delay_millis = (int)(20.0+(1-fraction_delay)*230.0);
+        pthread_mutex_unlock(&delay_lock);
     }
     else if(strcmp(subject_name, "locked") == 0){
         lv_lock();

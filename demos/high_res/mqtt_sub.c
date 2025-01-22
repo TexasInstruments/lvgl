@@ -37,6 +37,12 @@ void on_connect_vol_sub(struct mosquitto *mosq, void *obj, int reason_code)
         /* We might as well disconnect if we were unable to subscribe */
         mosquitto_disconnect(mosq);
   }
+  rc = mosquitto_subscribe(mosq, NULL, "SmartHome/led", 1);
+  if(rc != MOSQ_ERR_SUCCESS){
+        fprintf(stderr, "Error subscribing: %s\n", mosquitto_strerror(rc));
+        /* We might as well disconnect if we were unable to subscribe */
+        mosquitto_disconnect(mosq);
+  }
 }
 
 
@@ -84,6 +90,18 @@ void on_message_vol_sub(struct mosquitto *mosq, void *obj, const struct mosquitt
     printf("%s\n", command);
     error = system(command);
     printf("%s %d %s\n", msg->topic, msg->qos, (char *)msg->payload);
+  }
+  else if(strcmp((char*)msg->topic, "SmartHome/led")==0){
+    int led = atoi((char *)msg->payload);
+    if(led<=0){
+      led=0;
+    }
+    else if(led >=20000){
+      led=20000;
+    } 
+    lv_lock();
+    lv_subject_set_int(&api_hmi->subjects.main_light_temperature, led);
+    lv_unlock();
   }
 }
 
