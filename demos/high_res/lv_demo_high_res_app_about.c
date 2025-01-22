@@ -92,7 +92,7 @@ void lv_demo_high_res_app_about(lv_obj_t * base_obj)
     lv_obj_add_style(back_label, &c->fonts[FONT_HEADING_MD], 0);
 
     lv_obj_t * app_label = lv_label_create(app_info);
-    lv_label_set_text_static(app_label, "About");
+    lv_label_set_text_static(app_label, "Security");
     lv_obj_add_style(app_label, &c->styles[STYLE_COLOR_BASE][STYLE_TYPE_TEXT], 0);
     lv_obj_add_style(app_label, &c->fonts[FONT_HEADING_LG], 0);
 

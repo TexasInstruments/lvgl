@@ -154,7 +154,7 @@ void lv_demo_high_res_home(lv_obj_t * base_obj)
     app_card_create(c, apps, "Smart Home", c->imgs[IMG_SMART_HOME_APP_ICON], lv_demo_high_res_app_smart_home);
     app_card_create(c, apps, "Smart Meter", c->imgs[IMG_SMART_METER_APP_ICON], lv_demo_high_res_app_smart_meter);
     app_card_create(c, apps, "Thermostat", c->imgs[IMG_THERMOSTAT_APP_ICON], lv_demo_high_res_app_thermostat);
-    app_card_create(c, apps, "About", c->imgs[IMG_ABOUT_APP_ICON], lv_demo_high_res_app_about);
+    app_card_create(c, apps, "Security", c->imgs[IMG_ABOUT_APP_ICON], lv_demo_high_res_app_about);
 
     /* bottom_margin */
 
