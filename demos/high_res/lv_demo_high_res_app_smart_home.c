@@ -8,6 +8,7 @@
  *********************/
 
 #include "lv_demo_high_res_private.h"
+#include <pthread.h>
 #if LV_USE_DEMO_HIGH_RES
 
 #include "../../src/widgets/image/lv_image.h"
@@ -17,8 +18,10 @@
 #include "../../src/widgets/switch/lv_switch.h"
 
 /*********************
- *      DEFINES
+ *  Global variables
  *********************/
+extern pthread_mutex_t playing_now_lock;
+extern int playing_now;
 
 /**********************
  *      TYPEDEFS
@@ -353,9 +356,11 @@ static void widget3_play_pause_clicked_cb(lv_event_t * e)
     lv_obj_t * play_pause_img = lv_event_get_target_obj(e);
     lv_demo_high_res_ctx_t * c = lv_event_get_user_data(e);
 
-    bool was_playing = lv_image_get_src(play_pause_img) == c->imgs[IMG_PLAY_ICON];
-    lv_image_set_src(play_pause_img, c->imgs[was_playing ? IMG_PLAY_ICON_1 : IMG_PLAY_ICON]);
-    lv_subject_set_int(&c->api.subjects.music_play, !was_playing);
+    pthread_mutex_lock(&playing_now_lock);
+    playing_now = lv_image_get_src(play_pause_img) == c->imgs[IMG_PLAY_ICON];
+    lv_image_set_src(play_pause_img, c->imgs[playing_now ? IMG_PLAY_ICON_1 : IMG_PLAY_ICON]);
+    lv_subject_set_int(&c->api.subjects.music_play, !playing_now);
+    pthread_mutex_unlock(&playing_now_lock);
 }
 
 static void create_widget3(lv_demo_high_res_ctx_t * c, lv_obj_t * widgets)
