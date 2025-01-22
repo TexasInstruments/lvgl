@@ -106,7 +106,34 @@ void publish_sensor_data(float temp)
     rc = mosquitto_publish(mosq, NULL, "SmartHome/temp", strlen(payload), payload, 1, false);
     if(rc != MOSQ_ERR_SUCCESS){                                        
 		fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(rc));
-    }                              
+    }
+}
+
+void publish_evCharge_data(int ev_charge)                            
+{                                                                                     
+    if(!flag_is_connected){
+		return;
+	}
+	char payload[20];                                                   
+    int rc;                 
+                                                                                                                         
+    /* Print it to a string for easy human reading - payload format is highly
+        * application dependent. */                                                  
+    snprintf(payload, sizeof(payload), "%d", ev_charge);    
+                                                                        
+    /* Publish the message                  
+	* mosq - our client instance                                                 
+	* *mid = NULL - we don't want to know what the message id for this message is
+	* topic = "example/temperature" - the topic on which this message will be published
+	* payloadlen = strlen(payload) - the length of our payload in bytes
+	* payload - the actual payload                                    
+	* qos = 1 - publish with QoS 1 for this example
+	* retain = false - do not use the retained message feature for this message  
+	*/  
+	rc = mosquitto_publish(mosq, NULL, "SmartHome/evCharge", strlen(payload), payload, 1, false);
+    if(rc != MOSQ_ERR_SUCCESS){                                        
+		fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(rc));
+    }                                    
 }
 
 int mqtt_temp_pub_init(){

@@ -20,6 +20,11 @@
  *      DEFINES
  *********************/
 
+/*********************
+ *  GLOBAL VARIABLE
+ *********************/
+extern void publish_evCharge_data(int);
+
 /**********************
  *      TYPEDEFS
  **********************/
@@ -210,6 +215,7 @@ static void anim_exec_cb(void * var, int32_t v)
     lv_demo_high_res_ctx_t * c = lv_obj_get_user_data(base_obj);
 
     lv_subject_set_int(&c->ev_charging_progress, v);
+    publish_evCharge_data(lv_map(lv_subject_get_int(&c->ev_charging_progress), 0, EV_CHARGING_RANGE_END, 0, 100));
 
     if(c->ev_charging_bg_cont) {
         anim_state_t * anim_state = lv_obj_get_user_data(c->ev_charging_bg_cont);
