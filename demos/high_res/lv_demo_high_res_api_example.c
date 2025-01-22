@@ -8,6 +8,8 @@
  *********************/
 
 #include "lv_demo_high_res.h"
+#include<strings.h>
+#include<pthread.h>
 #if LV_USE_DEMO_HIGH_RES
 
 /*********************
@@ -22,6 +24,7 @@
  *  STATIC PROTOTYPES
  **********************/
 
+static pthread_t audio_thread;
 static void exit_cb(lv_demo_high_res_api_t * api);
 static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
 static void locked_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
@@ -38,14 +41,27 @@ static void clock_timer_cb(lv_timer_t * t);
  **********************/
 
 /**********************
+ *   GLOBAL VARIABLES
+ **********************/
+pthread_mutex_t playing_now_lock;
+int playing_now=0;
+
+/**********************
  *   GLOBAL FUNCTIONS
  **********************/
+extern void *audio_play(void);
+
 
 void lv_demo_high_res_api_example(const char * assets_path, const char * logo_path, const char * slides_path)
 {
     lv_demo_high_res_api_t * api = lv_demo_high_res(assets_path, logo_path, slides_path, exit_cb);
 
     /* see lv_demo_high_res.h for documentation of the available subjects */
+    lv_subject_set_int(&api->subjects.volume, 50);
+    int error=0;
+    char command[50];
+    sprintf(command, "amixer set PCM %d\%\t", 50);
+    error = system(command);
     lv_subject_set_int(&api->subjects.volume, 50);
     lv_subject_set_pointer(&api->subjects.month_name, "August");
     lv_subject_set_int(&api->subjects.month_day, 1);
@@ -67,6 +83,12 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
                             (void *)"thermostat_fan_speed");
     lv_subject_add_observer(&api->subjects.thermostat_target_temperature, output_subject_observer_cb,
                             (void *)"thermostat_target_temperature");
+
+    if (pthread_mutex_init(&playing_now_lock, NULL) != 0) { 
+        printf("\n mutex init has failed\n"); 
+        return 1; 
+    }
+    pthread_create(&audio_thread, NULL, audio_play, NULL);
 
     /* unlock after being locked for 3 seconds */
     lv_timer_t * locked_timer = lv_timer_create_basic();
@@ -95,6 +117,13 @@ static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * 
 {
     const char * subject_name = lv_observer_get_user_data(observer);
     LV_LOG_USER("%s output subject value: %"PRId32, subject_name, lv_subject_get_int(subject));
+    if(strcmp(subject_name, "volume") == 0){
+        char command[50];
+        int error=0;
+        sprintf(command, "amixer set PCM %d\%\t", lv_subject_get_int(subject));
+        printf("%s\n", command);
+        error = system(command);
+    }
 }
 
 static void locked_observer_cb(lv_observer_t * observer, lv_subject_t * subject)
