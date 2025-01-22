@@ -26,12 +26,12 @@
 
 static pthread_t audio_thread;
 static pthread_t mqtt_sub_thread;
+static pthread_t clock_thread;
 static void exit_cb(lv_demo_high_res_api_t * api);
 static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
 static void locked_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
 static void locked_timer_cb(lv_timer_t * t);
 static void delete_timer_cb(lv_event_t * e);
-static void clock_timer_cb(lv_timer_t * t);
 
 /**********************
  *  STATIC VARIABLES
@@ -52,6 +52,7 @@ int playing_now=0;
  **********************/
 extern void *audio_play(void);
 extern void *mqtt_sub_init(void);
+extern void *clock_init(void);
 
 
 void lv_demo_high_res_api_example(const char * assets_path, const char * logo_path, const char * slides_path)
@@ -92,15 +93,12 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     }
     pthread_create(&audio_thread, NULL, audio_play, NULL);
     pthread_create(&mqtt_sub_thread, NULL, mqtt_sub_init, api);
+    pthread_create(&clock_thread, NULL, clock_init, api);
 
     /* unlock after being locked for 3 seconds */
     lv_timer_t * locked_timer = lv_timer_create_basic();
     lv_obj_add_event_cb(api->base_obj, delete_timer_cb, LV_EVENT_DELETE, locked_timer);
     lv_subject_add_observer(&api->subjects.locked, locked_observer_cb, locked_timer);
-
-    /* slowly increment the time */
-    lv_timer_t * clock_timer = lv_timer_create(clock_timer_cb, 10000, api);
-    lv_obj_add_event_cb(api->base_obj, delete_timer_cb, LV_EVENT_DELETE, clock_timer);
 }
 
 /**********************
@@ -153,24 +151,6 @@ static void delete_timer_cb(lv_event_t * e)
 {
     lv_timer_t * timer = lv_event_get_user_data(e);
     lv_timer_delete(timer);
-}
-
-static void clock_timer_cb(lv_timer_t * t)
-{
-    /* slowly increment the time */
-    lv_demo_high_res_api_t * api = lv_timer_get_user_data(t);
-    int32_t minutes = lv_subject_get_int(&api->subjects.minute);
-    minutes += 1;
-    if(minutes > 59) {
-        minutes = 0;
-        int32_t hour = lv_subject_get_int(&api->subjects.hour);
-        hour += 1;
-        if(hour > 12) {
-            hour = 1;
-        }
-        lv_subject_set_int(&api->subjects.hour, hour);
-    }
-    lv_subject_set_int(&api->subjects.minute, minutes);
 }
 
 #endif /*LV_USE_DEMO_HIGH_RES*/
