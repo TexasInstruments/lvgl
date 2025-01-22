@@ -27,11 +27,9 @@
 static pthread_t audio_thread;
 static pthread_t mqtt_sub_thread;
 static pthread_t clock_thread;
+static pthread_t button_thread;
 static void exit_cb(lv_demo_high_res_api_t * api);
 static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
-static void locked_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
-static void locked_timer_cb(lv_timer_t * t);
-static void delete_timer_cb(lv_event_t * e);
 
 /**********************
  *  STATIC VARIABLES
@@ -53,6 +51,7 @@ int playing_now=0;
 extern void *audio_play(void);
 extern void *mqtt_sub_init(void);
 extern void *clock_init(void);
+extern void *button_init(void);
 
 
 void lv_demo_high_res_api_example(const char * assets_path, const char * logo_path, const char * slides_path)
@@ -94,11 +93,7 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     pthread_create(&audio_thread, NULL, audio_play, NULL);
     pthread_create(&mqtt_sub_thread, NULL, mqtt_sub_init, api);
     pthread_create(&clock_thread, NULL, clock_init, api);
-
-    /* unlock after being locked for 3 seconds */
-    lv_timer_t * locked_timer = lv_timer_create_basic();
-    lv_obj_add_event_cb(api->base_obj, delete_timer_cb, LV_EVENT_DELETE, locked_timer);
-    lv_subject_add_observer(&api->subjects.locked, locked_observer_cb, locked_timer);
+    pthread_create(&button_thread, NULL, button_init, api);
 }
 
 /**********************
@@ -125,32 +120,12 @@ static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * 
         printf("%s\n", command);
         error = system(command);
     }
-}
-
-static void locked_observer_cb(lv_observer_t * observer, lv_subject_t * subject)
-{
-    if(lv_subject_get_int(subject)) {
-        /* unlock after being locked for 3 seconds */
-        lv_timer_t * timer = lv_observer_get_user_data(observer);
-        lv_timer_set_cb(timer, locked_timer_cb);
-        lv_timer_set_period(timer, 3000);
-        lv_timer_set_user_data(timer, subject);
-        lv_timer_set_repeat_count(timer, 1);
-        lv_timer_set_auto_delete(timer, false);
-        lv_timer_resume(timer);
+    else if(strcmp(subject_name, "locked") == 0){
+        lv_lock();
+        int lock_status = lv_subject_get_int(subject);
+        lv_indev_enable(NULL, !lock_status);
+        lv_unlock();
     }
-}
-
-static void locked_timer_cb(lv_timer_t * t)
-{
-    lv_subject_t * locked_subject = lv_timer_get_user_data(t);
-    lv_subject_set_int(locked_subject, 0);
-}
-
-static void delete_timer_cb(lv_event_t * e)
-{
-    lv_timer_t * timer = lv_event_get_user_data(e);
-    lv_timer_delete(timer);
 }
 
 #endif /*LV_USE_DEMO_HIGH_RES*/
