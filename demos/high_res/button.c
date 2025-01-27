@@ -14,6 +14,7 @@
 #include <sys/mman.h>
 #include "lv_demo_high_res_private.h"
 
+int button_configured = 0;
 
 const char *ev_type[EV_CNT] = {
 	[EV_SYN]       = "EV_SYN",
@@ -57,6 +58,7 @@ void *button_init(lv_demo_high_res_api_t * api)
             int len_dev = strlen(dev);
             int len_buffer = strlen(buffer);
             dev[len_dev - 1] = buffer[len_buffer - 2];
+            button_configured = 1;
         }
         else{
             printf("Button not Configured\n");
