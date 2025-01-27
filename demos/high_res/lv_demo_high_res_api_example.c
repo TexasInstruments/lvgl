@@ -48,6 +48,7 @@ int delay_millis = 1000;
 pthread_mutex_t delay_lock;
 pthread_mutex_t playing_now_lock;
 int playing_now=0;
+extern int button_configured;
 
 /**********************
  *   GLOBAL FUNCTIONS
@@ -139,7 +140,7 @@ static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * 
         delay_millis = (int)(20.0+(1-fraction_delay)*230.0);
         pthread_mutex_unlock(&delay_lock);
     }
-    else if(strcmp(subject_name, "locked") == 0){
+    else if(button_configured && strcmp(subject_name, "locked") == 0){
         lv_lock();
         int lock_status = lv_subject_get_int(subject);
         lv_indev_enable(NULL, !lock_status);
