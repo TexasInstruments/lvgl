@@ -26,14 +26,13 @@
 
 static pthread_t audio_thread;
 static pthread_t mqtt_sub_thread;
+static pthread_t mqtt_sub_PG_thread;
 static pthread_t clock_thread;
 static pthread_t button_thread;
 static pthread_t led_thread;
 static pthread_t adc_thread;
 static void exit_cb(lv_demo_high_res_api_t * api);
 static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
-static void delete_timer_cb(lv_event_t * e);
-static void door_timer_cb(lv_timer_t * t);
 
 /**********************
  *  STATIC VARIABLES
@@ -57,6 +56,7 @@ extern int button_configured;
  **********************/
 extern void *audio_play(void);
 extern void *mqtt_sub_init(void);
+extern void *mqtt_sub_PG_init(void);
 extern void *clock_init(void);
 extern void *button_init(void);
 extern void *led_blink(void);
@@ -117,14 +117,11 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     }
     pthread_create(&audio_thread, NULL, audio_play, NULL);
     pthread_create(&mqtt_sub_thread, NULL, mqtt_sub_init, api);
+    pthread_create(&mqtt_sub_PG_thread, NULL, mqtt_sub_PG_init, api);
     pthread_create(&clock_thread, NULL, clock_init, api);
     pthread_create(&led_thread, NULL, led_blink, NULL);
     pthread_create(&button_thread, NULL, button_init, api);
     pthread_create(&adc_thread, NULL, adc_init, api);
-    
-    /* simulate the door opening and closing */
-    lv_timer_t * door_timer = lv_timer_create(door_timer_cb, 3000, api);
-    lv_obj_add_event_cb(api->base_obj, delete_timer_cb, LV_EVENT_DELETE, door_timer);
     
 }
 
@@ -165,19 +162,6 @@ static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * 
         lv_indev_enable(NULL, !lock_status);
         lv_unlock();
     }
-}
-
-static void delete_timer_cb(lv_event_t * e)
-{
-    lv_timer_t * timer = lv_event_get_user_data(e);
-    lv_timer_delete(timer);
-}
-
-
-static void door_timer_cb(lv_timer_t * t)
-{
-    lv_demo_high_res_api_t * api = lv_timer_get_user_data(t);
-    lv_subject_set_int(&api->subjects.door, !lv_subject_get_int(&api->subjects.door));
 }
 
 
