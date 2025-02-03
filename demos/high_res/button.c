@@ -73,17 +73,17 @@ void *button_init(lv_demo_high_res_api_t * api)
         int last_val=-1;
         int curr_val=-1;
         while (read(fd, &ie, sizeof(struct input_event))) {
-                if(ie.type != 1)
-                    continue;
-                curr_val = ie.value;
-                if(curr_val==0 && last_val > 0){
-                    fprintf(stderr, "Button Released!!\n");
-                    lv_lock();
-                    int lock_status = lv_subject_get_int(&api->subjects.locked);
-                    lv_subject_set_int(&api->subjects.locked, !lock_status);
-                    lv_unlock();
-                }
-                last_val = curr_val;
+            if(ie.type != 1)
+                continue;
+            curr_val = ie.value;
+            if(curr_val==0 && last_val > 0){
+                fprintf(stderr, "Button Released!!\n");
+                lv_lock();
+                int lock_status = lv_subject_get_int(&api->subjects.locked);
+                lv_subject_set_int(&api->subjects.locked, !lock_status);
+                lv_unlock();
+            }
+            last_val = curr_val;
         }
 
         close(fd);
