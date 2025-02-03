@@ -8,6 +8,8 @@
  *********************/
 
 #include "lv_demo_high_res.h"
+#include<strings.h>
+#include<pthread.h>
 #if LV_USE_DEMO_HIGH_RES
 
 /*********************
@@ -22,12 +24,14 @@
  *  STATIC PROTOTYPES
  **********************/
 
+static pthread_t audio_thread;
+static pthread_t mqtt_sub_thread;
+static pthread_t clock_thread;
+static pthread_t button_thread;
+static pthread_t led_thread;
+static pthread_t adc_thread;
 static void exit_cb(lv_demo_high_res_api_t * api);
 static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
-static void locked_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
-static void locked_timer_cb(lv_timer_t * t);
-static void delete_timer_cb(lv_event_t * e);
-static void clock_timer_cb(lv_timer_t * t);
 
 /**********************
  *  STATIC VARIABLES
@@ -38,14 +42,35 @@ static void clock_timer_cb(lv_timer_t * t);
  **********************/
 
 /**********************
+ *   GLOBAL VARIABLES
+ **********************/
+int delay_millis = 1000;
+pthread_mutex_t delay_lock;
+pthread_mutex_t playing_now_lock;
+int playing_now=0;
+extern int button_configured;
+
+/**********************
  *   GLOBAL FUNCTIONS
  **********************/
+extern void *audio_play(void);
+extern void *mqtt_sub_init(void);
+extern void *clock_init(void);
+extern void *button_init(void);
+extern void *led_blink(void);
+extern void *adc_init(void);
+
 
 void lv_demo_high_res_api_example(const char * assets_path, const char * logo_path, const char * slides_path)
 {
     lv_demo_high_res_api_t * api = lv_demo_high_res(assets_path, logo_path, slides_path, exit_cb);
 
     /* see lv_demo_high_res.h for documentation of the available subjects */
+    lv_subject_set_int(&api->subjects.volume, 50);
+    int error=0;
+    char command[50];
+    sprintf(command, "amixer set PCM %d\%\t", 50);
+    error = system(command);
     lv_subject_set_int(&api->subjects.volume, 50);
     lv_subject_set_pointer(&api->subjects.month_name, "August");
     lv_subject_set_int(&api->subjects.month_day, 1);
@@ -68,14 +93,20 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     lv_subject_add_observer(&api->subjects.thermostat_target_temperature, output_subject_observer_cb,
                             (void *)"thermostat_target_temperature");
 
-    /* unlock after being locked for 3 seconds */
-    lv_timer_t * locked_timer = lv_timer_create_basic();
-    lv_obj_add_event_cb(api->base_obj, delete_timer_cb, LV_EVENT_DELETE, locked_timer);
-    lv_subject_add_observer(&api->subjects.locked, locked_observer_cb, locked_timer);
-
-    /* slowly increment the time */
-    lv_timer_t * clock_timer = lv_timer_create(clock_timer_cb, 10000, api);
-    lv_obj_add_event_cb(api->base_obj, delete_timer_cb, LV_EVENT_DELETE, clock_timer);
+    if (pthread_mutex_init(&delay_lock, NULL) != 0) { 
+        printf("\n mutex init has failed\n"); 
+        return 1; 
+    }
+    if (pthread_mutex_init(&playing_now_lock, NULL) != 0) { 
+        printf("\n mutex init has failed\n"); 
+        return 1; 
+    }
+    pthread_create(&audio_thread, NULL, audio_play, NULL);
+    pthread_create(&mqtt_sub_thread, NULL, mqtt_sub_init, api);
+    pthread_create(&clock_thread, NULL, clock_init, api);
+    pthread_create(&button_thread, NULL, button_init, api);
+    pthread_create(&led_thread, NULL, led_blink, NULL);
+    pthread_create(&adc_thread, NULL, adc_init, api);
 }
 
 /**********************
@@ -95,50 +126,26 @@ static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * 
 {
     const char * subject_name = lv_observer_get_user_data(observer);
     LV_LOG_USER("%s output subject value: %"PRId32, subject_name, lv_subject_get_int(subject));
-}
-
-static void locked_observer_cb(lv_observer_t * observer, lv_subject_t * subject)
-{
-    if(lv_subject_get_int(subject)) {
-        /* unlock after being locked for 3 seconds */
-        lv_timer_t * timer = lv_observer_get_user_data(observer);
-        lv_timer_set_cb(timer, locked_timer_cb);
-        lv_timer_set_period(timer, 3000);
-        lv_timer_set_user_data(timer, subject);
-        lv_timer_set_repeat_count(timer, 1);
-        lv_timer_set_auto_delete(timer, false);
-        lv_timer_resume(timer);
+    if(strcmp(subject_name, "volume") == 0){
+        char command[50];
+        int error=0;
+        sprintf(command, "amixer set PCM %d\%\t", lv_subject_get_int(subject));
+        printf("%s\n", command);
+        error = system(command);
     }
-}
-
-static void locked_timer_cb(lv_timer_t * t)
-{
-    lv_subject_t * locked_subject = lv_timer_get_user_data(t);
-    lv_subject_set_int(locked_subject, 0);
-}
-
-static void delete_timer_cb(lv_event_t * e)
-{
-    lv_timer_t * timer = lv_event_get_user_data(e);
-    lv_timer_delete(timer);
-}
-
-static void clock_timer_cb(lv_timer_t * t)
-{
-    /* slowly increment the time */
-    lv_demo_high_res_api_t * api = lv_timer_get_user_data(t);
-    int32_t minutes = lv_subject_get_int(&api->subjects.minute);
-    minutes += 1;
-    if(minutes > 59) {
-        minutes = 0;
-        int32_t hour = lv_subject_get_int(&api->subjects.hour);
-        hour += 1;
-        if(hour > 12) {
-            hour = 1;
-        }
-        lv_subject_set_int(&api->subjects.hour, hour);
+    else if(strcmp(subject_name, "main_light_temperature") == 0){
+        int main_light_temp = lv_subject_get_int(subject);
+        float fraction_delay = main_light_temp/20000.0;
+        pthread_mutex_lock(&delay_lock);
+        delay_millis = (int)(20.0+(1-fraction_delay)*230.0);
+        pthread_mutex_unlock(&delay_lock);
     }
-    lv_subject_set_int(&api->subjects.minute, minutes);
+    else if(button_configured && strcmp(subject_name, "locked") == 0){
+        lv_lock();
+        int lock_status = lv_subject_get_int(subject);
+        lv_indev_enable(NULL, !lock_status);
+        lv_unlock();
+    }
 }
 
 #endif /*LV_USE_DEMO_HIGH_RES*/
