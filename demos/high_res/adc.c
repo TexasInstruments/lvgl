@@ -5,13 +5,7 @@
  *
  * This program is primarily intended as an example application.
  * Reads the current buffer setup from sysfs and starts a short capture
- * from the specified device, pretty printing the result after appropriate
- * conversion.
- *
- * Command line parameters
- * generic_buffer -n <device_name> -t <trigger_name>
- * If trigger name is not specified the program assumes you want a dataready
- * trigger associated with the device and goes looking for it.
+ * from the specified device.
  */
 
 #include <unistd.h>
