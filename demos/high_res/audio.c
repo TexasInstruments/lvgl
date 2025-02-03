@@ -116,6 +116,7 @@ void *audio_play() {
                             pcm = snd_pcm_pause(pcm_handle, 1);
                         }
                         pthread_mutex_unlock(&playing_now_lock);
+                        usleep(250000);
                     }
 
                     if (pcm = read(fd, buff, buff_size) == 0) {
