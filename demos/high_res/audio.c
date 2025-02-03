@@ -3,13 +3,6 @@
  *
  * Compile:
  * $ cc -o play sound_playback.c -lasound
- * 
- * Usage:
- * $ ./play <sample_rate> <channels> <seconds> < <file>
- * 
- * Examples:
- * $ ./play 44100 2 5 < /dev/urandom
- * $ ./play 22050 1 8 < /path/to/file.wav
  *
  * Copyright (C) 2009 Alessandro Ghedini <alessandro@ghedini.me>
  * --------------------------------------------------------------
