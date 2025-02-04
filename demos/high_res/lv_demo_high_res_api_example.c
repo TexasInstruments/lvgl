@@ -27,6 +27,7 @@
 static pthread_t audio_thread;
 static pthread_t mqtt_sub_thread;
 static pthread_t mqtt_sub_PG_thread;
+static pthread_t mqtt_pub_PG_thread;
 static pthread_t clock_thread;
 static pthread_t button_thread;
 static pthread_t led_thread;
@@ -57,10 +58,12 @@ extern int button_configured;
 extern void *audio_play(void);
 extern void *mqtt_sub_init(void);
 extern void *mqtt_sub_PG_init(void);
+extern void *mqtt_pub_PG_init(void);
 extern void *clock_init(void);
 extern void *button_init(void);
 extern void *led_blink(void);
 extern void *adc_init(void);
+extern void publish_PG_data(int, int);
 
 
 void lv_demo_high_res_api_example(const char * assets_path, const char * logo_path, const char * slides_path)
@@ -84,10 +87,10 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     lv_subject_set_pointer(&api->subjects.wifi_ip, "192.168.1.1");
     lv_subject_set_int(&api->subjects.door, 0); /* tell the UI the door is closed */
     lv_subject_set_int(&api->subjects.lightbulb_matter, 0); /* 0 or 1 */
-    lv_subject_set_int(&api->subjects.lightbulb_zigbee, 1); /* 0 or 1 */
+    lv_subject_set_int(&api->subjects.lightbulb_zigbee, 0); /* 0 or 1 */
     lv_subject_set_int(&api->subjects.fan_matter, 0); /* 0-3 */
     lv_subject_set_int(&api->subjects.fan_zigbee, 0); /* 0 or 1*/
-    lv_subject_set_int(&api->subjects.air_purifier, 3); /* 0-3 */
+    lv_subject_set_int(&api->subjects.air_purifier, 0); /* 0-3 */
 
     lv_subject_add_observer(&api->subjects.music_play, output_subject_observer_cb, (void *)"music_play");
     lv_subject_add_observer(&api->subjects.locked, output_subject_observer_cb, (void *)"locked");
@@ -118,6 +121,7 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     pthread_create(&audio_thread, NULL, audio_play, NULL);
     pthread_create(&mqtt_sub_thread, NULL, mqtt_sub_init, api);
     pthread_create(&mqtt_sub_PG_thread, NULL, mqtt_sub_PG_init, api);
+    pthread_create(&mqtt_pub_PG_thread, NULL, mqtt_pub_PG_init, api);
     pthread_create(&clock_thread, NULL, clock_init, api);
     pthread_create(&led_thread, NULL, led_blink, NULL);
     pthread_create(&button_thread, NULL, button_init, api);
@@ -161,6 +165,21 @@ static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * 
         int lock_status = lv_subject_get_int(subject);
         lv_indev_enable(NULL, !lock_status);
         lv_unlock();
+    }
+    else if(strcmp(subject_name, "Matter lightbulb") == 0){
+        publish_PG_data(0, (int)lv_subject_get_int(subject));
+    }
+    else if(strcmp(subject_name, "Zigbee lightbulb") == 0){
+        publish_PG_data(1, (int)lv_subject_get_int(subject));
+    }
+    else if(strcmp(subject_name, "Matter fan") == 0){
+        publish_PG_data(2, (int)lv_subject_get_int(subject));
+    }
+    else if(strcmp(subject_name, "Zigbee fan") == 0){
+        publish_PG_data(3, (int)lv_subject_get_int(subject));
+    }
+    else if(strcmp(subject_name, "air purifier") == 0){
+        publish_PG_data(4, (int)lv_subject_get_int(subject));
     }
 }
 

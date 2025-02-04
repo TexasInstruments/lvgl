@@ -11,12 +11,12 @@
 #include "lv_demo_high_res_private.h"
 
 static lv_demo_high_res_api_t * api_hmi;
-char devices[1][20] = {"Door"};
+char devices[6][20] = {"Light_matter","Light_zigbee","Fan_matter","Fan_zigbee", "Airpurifier", "Door"};
 int num_devices = sizeof(devices) / sizeof(*devices);
 char SERVER_IP_ADDR[20]={'\0'};
 
 /* Callback called when the client receives a CONNACK message from the broker. */
-void on_connect_PG(struct mosquitto *mosq, void *obj, int reason_code)
+void on_connect_sub_PG(struct mosquitto *mosq, void *obj, int reason_code)
 {
   int rc;
   /* Print out the connection result. mosquitto_connack_string() produces an
@@ -46,7 +46,7 @@ void on_connect_PG(struct mosquitto *mosq, void *obj, int reason_code)
 
 
 /* Callback called when the broker sends a SUBACK in response to a SUBSCRIBE. */
-void on_subscribe_PG(struct mosquitto *mosq, void *obj, int mid, int qos_count, const int *granted_qos)
+void on_subscribe_sub_PG(struct mosquitto *mosq, void *obj, int mid, int qos_count, const int *granted_qos)
 {
   int i;
   bool have_subscription = false;
@@ -70,11 +70,90 @@ void on_subscribe_PG(struct mosquitto *mosq, void *obj, int mid, int qos_count, 
 
 
 /* Callback called when the client receives a message. */
-void on_message_PG(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg)
+void on_message_sub_PG(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg)
 {
-  if(strcmp((char*)msg->topic, "Door")==0){
-    char rcvd_msg[30];
-    strcpy(rcvd_msg, (char *)msg->payload);
+  char rcvd_msg[30];
+  strcpy(rcvd_msg, (char *)msg->payload);
+  if(strstr(rcvd_msg, "hmi")){
+    //Ignore if Source of message is HMI
+    return;
+  }
+  if(strcmp((char*)msg->topic, "Light_matter")==0){
+    if(strstr(rcvd_msg, "on")){       //Light on
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.lightbulb_matter, 1);
+      lv_unlock();
+    }
+    else if(strstr(rcvd_msg, "off")){ //Light off
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.lightbulb_matter, 0);
+      lv_unlock();
+    }
+    else{
+      printf("Invalid Message\n");
+    } 
+  }
+  else if(strcmp((char*)msg->topic, "Light_zigbee")==0){
+    if(strstr(rcvd_msg, "on")){       //Light on
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.lightbulb_zigbee, 1);
+      lv_unlock();
+    }
+    else if(strstr(rcvd_msg, "off")){ //Light off
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.lightbulb_zigbee, 0);
+      lv_unlock();
+    }
+    else{
+      printf("Invalid Message\n");
+    } 
+  }
+  else if(strcmp((char*)msg->topic, "Fan_matter")==0){
+    if(strstr(rcvd_msg, "on")){       //Fan on
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.fan_matter, 1);
+      lv_unlock();
+    }
+    else if(strstr(rcvd_msg, "off")){ //Fan off
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.fan_matter, 0);
+      lv_unlock();
+    }
+    else{
+      printf("Invalid Message\n");
+    } 
+  }
+  else if(strcmp((char*)msg->topic, "Fan_zigbee")==0){
+    if(strstr(rcvd_msg, "on")){       //Fan on
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.fan_zigbee, 1);
+      lv_unlock();
+    }
+    else if(strstr(rcvd_msg, "off")){ //Fan off
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.fan_zigbee, 0);
+      lv_unlock();
+    }
+    else{
+      printf("Invalid Message\n");
+    } 
+  }
+  else if(strcmp((char*)msg->topic, "Airpurifier")==0){
+    if(strstr(rcvd_msg, "on")){       //Airpurifier on
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.air_purifier, 1);
+      lv_unlock();
+    }
+    else if(strstr(rcvd_msg, "off")){ //Airpurifier off
+      lv_lock();
+      lv_subject_set_int(&api_hmi->subjects.air_purifier, 0);
+      lv_unlock();
+    }
+    else{
+      printf("Invalid Message\n");
+    } 
+  }
+  else if(strcmp((char*)msg->topic, "Door")==0){
     if(strstr(rcvd_msg, "on")){       //Door Open
       lv_lock();
       lv_subject_set_int(&api_hmi->subjects.door, 1);
@@ -89,6 +168,7 @@ void on_message_PG(struct mosquitto *mosq, void *obj, const struct mosquitto_mes
       printf("Invalid Message\n");
     } 
   }
+  
 }
 
 
@@ -112,9 +192,9 @@ void *mqtt_sub_PG_init(lv_demo_high_res_api_t * api){
   }
 
   /* Configure callbacks. This should be done before connecting ideally. */
-  mosquitto_connect_callback_set(mosq, on_connect_PG);
-  mosquitto_subscribe_callback_set(mosq, on_subscribe_PG);
-  mosquitto_message_callback_set(mosq, on_message_PG);
+  mosquitto_connect_callback_set(mosq, on_connect_sub_PG);
+  mosquitto_subscribe_callback_set(mosq, on_subscribe_sub_PG);
+  mosquitto_message_callback_set(mosq, on_message_sub_PG);
 
   printf("Enter server IP addr:\n");
   scanf("%[^\n]%*c", SERVER_IP_ADDR);
