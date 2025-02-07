@@ -29,6 +29,7 @@ static pthread_t mqtt_sub_thread;
 static pthread_t clock_thread;
 static pthread_t button_thread;
 static pthread_t led_thread;
+static pthread_t adc_thread;
 static void exit_cb(lv_demo_high_res_api_t * api);
 static void output_subject_observer_cb(lv_observer_t * observer, lv_subject_t * subject);
 static void delete_timer_cb(lv_event_t * e);
@@ -58,6 +59,7 @@ extern void *mqtt_sub_init(void);
 extern void *clock_init(void);
 extern void *button_init(void);
 extern void *led_blink(void);
+extern void *adc_init(void);
 
 
 void lv_demo_high_res_api_example(const char * assets_path, const char * logo_path, const char * slides_path)
@@ -117,7 +119,8 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
     pthread_create(&clock_thread, NULL, clock_init, api);
     pthread_create(&led_thread, NULL, led_blink, NULL);
     pthread_create(&button_thread, NULL, button_init, api);
-
+    pthread_create(&adc_thread, NULL, adc_init, api);
+    
     /* simulate the door opening and closing */
     lv_timer_t * door_timer = lv_timer_create(door_timer_cb, 3000, api);
     lv_obj_add_event_cb(api->base_obj, delete_timer_cb, LV_EVENT_DELETE, door_timer);
