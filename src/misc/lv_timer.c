@@ -13,6 +13,7 @@
 #include "lv_assert.h"
 #include "lv_ll.h"
 #include "lv_profiler.h"
+#include "../../demos/high_res/lv_demo_high_res_perf_stats.h"
 
 /*********************
  *      DEFINES
@@ -264,7 +265,7 @@ void lv_timer_core_deinit(void)
 
 uint32_t lv_timer_get_idle(void)
 {
-    return state.idle_last;
+    return ti_get_cpu_load();
 }
 
 uint32_t lv_timer_get_time_until_next(void)
