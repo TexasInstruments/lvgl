@@ -84,12 +84,12 @@ void lv_demo_high_res_api_example(const char * assets_path, const char * logo_pa
 	sigaction(SIGTERM, &sa, NULL);
 
     /* see lv_demo_high_res.h for documentation of the available subjects */
-    lv_subject_set_int(&api->subjects.volume, 50);
+    lv_subject_set_int(&api->subjects.volume, 90);
     int error=0;
     char command[50];
-    sprintf(command, "amixer set PCM %d\%\t", 50);
+    sprintf(command, "amixer set PCM %d\%\t", 90);
     error = system(command);
-    lv_subject_set_int(&api->subjects.volume, 50);
+    lv_subject_set_int(&api->subjects.volume, 90);
     lv_subject_set_pointer(&api->subjects.month_name, "August");
     lv_subject_set_int(&api->subjects.month_day, 1);
     lv_subject_set_pointer(&api->subjects.week_day_name, "Wednesday");
