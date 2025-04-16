@@ -209,6 +209,7 @@ int *adc_init(lv_demo_high_res_api_t * api)
 			lv_unlock();
 			publish_sensor_data(adc_data/10.0);
 		}
+        pclose(fp);
         usleep(500000);
 	}
     mosquitto_lib_cleanup();

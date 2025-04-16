@@ -88,6 +88,7 @@ void *button_init(void * api_arg)
             last_val = curr_val;
         }
 
+        pclose(fp);
         close(fd);
 
         return NULL;
