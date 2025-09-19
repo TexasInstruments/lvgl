@@ -151,7 +151,7 @@ void lv_demo_high_res_home(lv_obj_t * base_obj)
     lv_obj_set_flex_flow(apps, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_column(apps, c->sz->gap[6], 0);
     app_card_create(c, apps, "EV Charging", c->imgs[IMG_EV_CHARGING_APP_ICON], lv_demo_high_res_app_ev_charging);
-    // app_card_create(c, apps, "EdgeAI", c->imgs[IMG_SMART_HOME_APP_ICON], lv_demo_high_res_app_edgeai);
+    app_card_create(c, apps, "EdgeAI", c->imgs[IMG_SMART_HOME_APP_ICON], lv_demo_high_res_app_edgeai);
     app_card_create(c, apps, "Smart Home", c->imgs[IMG_SMART_HOME_APP_ICON], lv_demo_high_res_app_smart_home);
     app_card_create(c, apps, "Smart Meter", c->imgs[IMG_SMART_METER_APP_ICON], lv_demo_high_res_app_smart_meter);
     app_card_create(c, apps, "Thermostat", c->imgs[IMG_THERMOSTAT_APP_ICON], lv_demo_high_res_app_thermostat);
