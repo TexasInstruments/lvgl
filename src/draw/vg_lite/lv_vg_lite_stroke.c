@@ -229,11 +229,12 @@ static bool stroke_create_cb(stroke_item_t * item, void * user_data)
         /* mark dash pattern has been duped */
         item->dash_pattern_type = DASH_PATTERN_TYPE_VG;
         vg_dash_pattern = lv_array_front(&item->vg.dash_pattern);
+        LV_ASSERT_NULL(vg_dash_pattern);
     }
 
     /* update parameters */
     vg_lite_path_t * vg_path = lv_vg_lite_path_get_path(item->vg.path);
-    LV_VG_LITE_CHECK_ERROR(vg_lite_set_path_type(vg_path, VG_LITE_DRAW_STROKE_PATH));
+    LV_VG_LITE_CHECK_ERROR(vg_lite_set_path_type(vg_path, VG_LITE_DRAW_STROKE_PATH), {});
 
     vg_lite_error_t error = vg_lite_set_stroke(
                                 vg_path,

@@ -33,6 +33,8 @@
  *  STATIC PROTOTYPES
  **********************/
 
+static inline bool matrix_has_transform(const vg_lite_matrix_t * matrix);
+
 /**********************
  *  STATIC VARIABLES
  **********************/
@@ -96,12 +98,8 @@ void lv_draw_vg_lite_img(lv_draw_task_t * t, const lv_draw_image_dsc_t * dsc,
     vg_lite_matrix_t matrix = u->global_matrix;
     lv_vg_lite_matrix_multiply(&matrix, &image_matrix);
 
-    LV_VG_LITE_ASSERT_SRC_BUFFER(&src_buf);
-    LV_VG_LITE_ASSERT_DEST_BUFFER(&u->target_buffer);
-    LV_VG_LITE_ASSERT_MATRIX(&matrix);
-
-    bool no_transform = lv_matrix_is_identity_or_translation((const lv_matrix_t *)&matrix);
-    vg_lite_filter_t filter = no_transform ? VG_LITE_FILTER_POINT : VG_LITE_FILTER_BI_LINEAR;
+    bool has_transform = matrix_has_transform(&matrix);
+    vg_lite_filter_t filter = has_transform ? VG_LITE_FILTER_BI_LINEAR : VG_LITE_FILTER_POINT;
 
     /* If clipping is not required, blit directly */
     if(lv_area_is_in(&image_tf_area, &t->clip_area, false) && dsc->clip_radius <= 0) {
@@ -113,16 +111,14 @@ void lv_draw_vg_lite_img(lv_draw_task_t * t, const lv_draw_image_dsc_t * dsc,
             .height = lv_area_get_height(coords),
         };
 
-        LV_PROFILER_DRAW_BEGIN_TAG("vg_lite_blit_rect");
-        LV_VG_LITE_CHECK_ERROR(vg_lite_blit_rect(
-                                   &u->target_buffer,
-                                   &src_buf,
-                                   &rect,
-                                   &matrix,
-                                   blend,
-                                   color,
-                                   filter));
-        LV_PROFILER_DRAW_END_TAG("vg_lite_blit_rect");
+        lv_vg_lite_blit_rect(
+            &u->target_buffer,
+            &src_buf,
+            &rect,
+            &matrix,
+            blend,
+            color,
+            filter);
     }
     else {
         lv_vg_lite_path_t * path = lv_vg_lite_path_get(u, VG_LITE_FP32);
@@ -131,13 +127,13 @@ void lv_draw_vg_lite_img(lv_draw_task_t * t, const lv_draw_image_dsc_t * dsc,
          * When the image is transformed or rounded, create a path around
          * the image and follow the image_matrix for coordinate transformation
          */
-        if(!no_transform || dsc->clip_radius) {
+        if(has_transform || dsc->clip_radius) {
             /* apply the image transform to the path */
             lv_vg_lite_path_set_transform(path, &image_matrix);
             lv_vg_lite_path_append_rect(
                 path,
                 0, 0,
-                lv_area_get_width(coords), lv_area_get_height(coords),
+                lv_area_get_width(&dsc->image_area), lv_area_get_height(&dsc->image_area),
                 dsc->clip_radius);
             lv_vg_lite_path_set_transform(path, NULL);
         }
@@ -153,26 +149,20 @@ void lv_draw_vg_lite_img(lv_draw_task_t * t, const lv_draw_image_dsc_t * dsc,
         lv_vg_lite_path_set_bounding_box_area(path, &clip_area);
         lv_vg_lite_path_end(path);
 
-        vg_lite_path_t * vg_lite_path = lv_vg_lite_path_get_path(path);
-        LV_VG_LITE_ASSERT_PATH(vg_lite_path);
-
         vg_lite_matrix_t path_matrix = u->global_matrix;
-        LV_VG_LITE_ASSERT_MATRIX(&path_matrix);
 
-        LV_PROFILER_DRAW_BEGIN_TAG("vg_lite_draw_pattern");
-        LV_VG_LITE_CHECK_ERROR(vg_lite_draw_pattern(
-                                   &u->target_buffer,
-                                   vg_lite_path,
-                                   VG_LITE_FILL_EVEN_ODD,
-                                   &path_matrix,
-                                   &src_buf,
-                                   &matrix,
-                                   blend,
-                                   VG_LITE_PATTERN_COLOR,
-                                   0,
-                                   color,
-                                   filter));
-        LV_PROFILER_DRAW_END_TAG("vg_lite_draw_pattern");
+        lv_vg_lite_draw_pattern(
+            &u->target_buffer,
+            lv_vg_lite_path_get_path(path),
+            VG_LITE_FILL_EVEN_ODD,
+            &path_matrix,
+            &src_buf,
+            &matrix,
+            blend,
+            VG_LITE_PATTERN_COLOR,
+            0,
+            color,
+            filter);
 
         lv_vg_lite_path_drop(u, path);
     }
@@ -184,5 +174,20 @@ void lv_draw_vg_lite_img(lv_draw_task_t * t, const lv_draw_image_dsc_t * dsc,
 /**********************
  *   STATIC FUNCTIONS
  **********************/
+
+static inline bool matrix_has_transform(const vg_lite_matrix_t * matrix)
+{
+    /**
+     * When the rotation angle is 0 or 180 degrees,
+     * it is considered that there is no transformation.
+     */
+    return !((matrix->m[0][0] == 1.0f || matrix->m[0][0] == -1.0f) &&
+             matrix->m[0][1] == 0.0f &&
+             matrix->m[1][0] == 0.0f &&
+             (matrix->m[1][1] == 1.0f || matrix->m[1][1] == -1.0f) &&
+             matrix->m[2][0] == 0.0f &&
+             matrix->m[2][1] == 0.0f &&
+             matrix->m[2][2] == 1.0f);
+}
 
 #endif /*LV_USE_DRAW_VG_LITE*/

@@ -56,8 +56,8 @@ void lv_xml_table_apply(lv_xml_parser_state_t * state, const char ** attrs)
         const char * name = attrs[i];
         const char * value = attrs[i + 1];
 
-        if(lv_streq("column_conunt", name)) lv_table_set_column_count(item, lv_xml_atoi(value));
-        else if(lv_streq("row_conunt", name)) lv_table_set_row_count(item, lv_xml_atoi(value));
+        if(lv_streq("column_count", name)) lv_table_set_column_count(item, lv_xml_atoi(value));
+        else if(lv_streq("row_count", name)) lv_table_set_row_count(item, lv_xml_atoi(value));
         else if(lv_streq("selected_cell", name)) {
 
             int32_t value1 = lv_xml_atoi_split(&value, ' ');
@@ -119,11 +119,11 @@ void lv_xml_table_cell_apply(lv_xml_parser_state_t * state, const char ** attrs)
             lv_strncpy(buf, value, sizeof(buf));
             char * buf_p = buf;
             const char * str;
-            while((str = lv_xml_split_str(&buf_p, ' ')) != NULL) {
+            while((str = lv_xml_split_str(&buf_p, '|')) != NULL) {
                 ctrl |= table_ctrl_to_enum(str);
             }
 
-            lv_table_add_cell_ctrl(table, row, column, ctrl);
+            lv_table_set_cell_ctrl(table, row, column, ctrl);
         }
     }
 }

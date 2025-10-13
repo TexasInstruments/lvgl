@@ -3,12 +3,12 @@
 
 static void row_gap_anim(void * obj, int32_t v)
 {
-    lv_obj_set_style_pad_row(obj, v, 0);
+    lv_obj_set_style_pad_row((lv_obj_t *) obj, v, 0);
 }
 
 static void column_gap_anim(void * obj, int32_t v)
 {
-    lv_obj_set_style_pad_column(obj, v, 0);
+    lv_obj_set_style_pad_column((lv_obj_t *) obj, v, 0);
 }
 
 /**
@@ -29,7 +29,7 @@ void lv_example_grid_5(void)
 
     lv_obj_t * label;
     lv_obj_t * obj;
-    uint32_t i;
+    uint8_t i;
     for(i = 0; i < 9; i++) {
         uint8_t col = i % 3;
         uint8_t row = i / 3;

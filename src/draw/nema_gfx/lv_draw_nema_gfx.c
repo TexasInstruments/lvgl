@@ -76,6 +76,8 @@ static int32_t nema_gfx_evaluate(lv_draw_unit_t * draw_unit, lv_draw_task_t * ta
 
 static int32_t nema_gfx_delete(lv_draw_unit_t * draw_unit);
 
+static int32_t nema_gfx_wait_for_finish(lv_draw_unit_t * draw_unit);
+
 /**********************
  *  STATIC VARIABLES
  **********************/
@@ -97,6 +99,7 @@ void lv_draw_nema_gfx_init(void)
     draw_nema_gfx_unit->base_unit.dispatch_cb = nema_gfx_dispatch;
     draw_nema_gfx_unit->base_unit.evaluate_cb = nema_gfx_evaluate;
     draw_nema_gfx_unit->base_unit.delete_cb = nema_gfx_delete;
+    draw_nema_gfx_unit->base_unit.wait_for_finish_cb = nema_gfx_wait_for_finish;
     draw_nema_gfx_unit->base_unit.name = "NEMA_GFX";
 
 #if LV_USE_NEMA_VG
@@ -116,7 +119,7 @@ void lv_draw_nema_gfx_init(void)
 
 
 #if LV_USE_OS
-    lv_thread_init(&draw_nema_gfx_unit->thread, "nemagfx", LV_THREAD_PRIO_HIGH, nema_gfx_render_thread_cb, 2 * 1024,
+    lv_thread_init(&draw_nema_gfx_unit->thread, "nemagfx", LV_DRAW_THREAD_PRIO, nema_gfx_render_thread_cb, 2 * 1024,
                    draw_nema_gfx_unit);
 #endif
 }
@@ -129,6 +132,14 @@ void lv_draw_nema_gfx_deinit(void)
 /**********************
  *   STATIC FUNCTIONS
  **********************/
+
+static int32_t nema_gfx_wait_for_finish(lv_draw_unit_t * draw_unit)
+{
+    lv_draw_nema_gfx_unit_t * draw_nema_gfx_unit = (lv_draw_nema_gfx_unit_t *)draw_unit;
+    nema_cl_submit(&(draw_nema_gfx_unit->cl));
+    nema_cl_wait(&(draw_nema_gfx_unit->cl));
+    return 1;
+}
 
 static int32_t nema_gfx_evaluate(lv_draw_unit_t * draw_unit, lv_draw_task_t * task)
 {
@@ -166,7 +177,7 @@ static int32_t nema_gfx_evaluate(lv_draw_unit_t * draw_unit, lv_draw_task_t * ta
             }
         case LV_DRAW_TASK_TYPE_TRIANGLE: {
                 lv_draw_triangle_dsc_t * draw_triangle_dsc = (lv_draw_triangle_dsc_t *) task->draw_dsc;
-                if((draw_triangle_dsc->bg_grad.dir == (lv_grad_dir_t)LV_GRAD_DIR_NONE)) {
+                if((draw_triangle_dsc->grad.dir == (lv_grad_dir_t)LV_GRAD_DIR_NONE)) {
                     if(task->preference_score > 80) {
                         task->preference_score = 80;
                         task->preferred_draw_unit_id = DRAW_UNIT_ID_NEMA_GFX;
@@ -235,7 +246,9 @@ static int32_t nema_gfx_evaluate(lv_draw_unit_t * draw_unit, lv_draw_task_t * ta
         case LV_DRAW_TASK_TYPE_BOX_SHADOW:
         case LV_DRAW_TASK_TYPE_MASK_RECTANGLE:
         case LV_DRAW_TASK_TYPE_MASK_BITMAP:
+#if LV_USE_VECTOR_GRAPHIC
         case LV_DRAW_TASK_TYPE_VECTOR:
+#endif
         default:
             break;
     }
@@ -252,7 +265,7 @@ static int32_t nema_gfx_dispatch(lv_draw_unit_t * draw_unit, lv_layer_t * layer)
         return 0;
 
     /* Try to get an ready to draw. */
-    lv_draw_task_t * t = lv_draw_get_next_available_task(layer, NULL, DRAW_UNIT_ID_NEMA_GFX);
+    lv_draw_task_t * t = lv_draw_get_available_task(layer, NULL, DRAW_UNIT_ID_NEMA_GFX);
 
     /* Return 0 is no selection, some tasks can be supported by other units. */
     if(t == NULL || t->preferred_draw_unit_id != DRAW_UNIT_ID_NEMA_GFX)
@@ -263,8 +276,6 @@ static int32_t nema_gfx_dispatch(lv_draw_unit_t * draw_unit, lv_layer_t * layer)
         return LV_DRAW_UNIT_IDLE;
 
     t->state = LV_DRAW_TASK_STATE_IN_PROGRESS;
-    draw_nema_gfx_unit->base_unit.target_layer = layer;
-    draw_nema_gfx_unit->base_unit.clip_area = &t->clip_area;
     draw_nema_gfx_unit->task_act = t;
 
 #if LV_USE_OS

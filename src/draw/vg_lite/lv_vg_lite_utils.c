@@ -103,6 +103,10 @@ void lv_vg_lite_error_dump_info(vg_lite_error_t error)
             LV_LOG_USER("No error");
             break;
 
+        case VG_LITE_NOT_ALIGNED:
+        case VG_LITE_INVALID_ARGUMENT:
+            break;
+
         case VG_LITE_OUT_OF_MEMORY:
         case VG_LITE_OUT_OF_RESOURCES: {
                 vg_lite_uint32_t mem_size = 0;
@@ -301,12 +305,33 @@ const char * lv_vg_lite_vlc_op_string(uint8_t vlc_op)
 static void path_data_print_cb(void * user_data, uint8_t op_code, const float * data, uint32_t len)
 {
     LV_UNUSED(user_data);
+    const char * op_str = lv_vg_lite_vlc_op_string(op_code);
 
-    LV_LOG("%s, ", lv_vg_lite_vlc_op_string(op_code));
-    for(uint32_t i = 0; i < len; i++) {
-        LV_LOG("%0.2f, ", data[i]);
+    switch(len) {
+        case 0:
+            LV_LOG("%s,\n", op_str);
+            break;
+        case 2:
+            LV_LOG("%s, %f, %f,\n", op_str, data[0], data[1]);
+            break;
+        case 4:
+            LV_LOG("%s, %f, %f, %f, %f,\n", op_str, data[0], data[1], data[2], data[3]);
+            break;
+        case 5:
+            LV_LOG("%s, %f, %f, %f, %f, %f,\n", op_str, data[0], data[1], data[2], data[3], data[4]);
+            break;
+        case 6:
+            LV_LOG("%s, %f, %f, %f, %f, %f, %f,\n", op_str, data[0], data[1], data[2], data[3], data[4], data[5]);
+            break;
+        default: {
+                LV_LOG("%s, ", op_str);
+                for(uint32_t i = 0; i < len; i++) {
+                    LV_LOG("%f, ", data[i]);
+                }
+                LV_LOG("\n");
+            }
+            break;
     }
-    LV_LOG("\n");
 }
 
 void lv_vg_lite_path_dump_info(const vg_lite_path_t * path)
@@ -436,6 +461,16 @@ void lv_vg_lite_matrix_dump_info(const vg_lite_matrix_t * matrix)
     }
 }
 
+void lv_vg_lite_color_dump_info(const vg_lite_color_t color)
+{
+    LV_LOG_USER("0x%08X (A%d, B%d, G%d, R%d)",
+                (int)color,
+                (int)((color >> 24) & 0xFF),
+                (int)((color >> 16) & 0xFF),
+                (int)((color >> 8) & 0xFF),
+                (int)((color >> 0) & 0xFF));
+}
+
 bool lv_vg_lite_is_dest_cf_supported(lv_color_format_t cf)
 {
     switch(cf) {
@@ -535,6 +570,9 @@ vg_lite_buffer_format_t lv_vg_lite_vg_fmt(lv_color_format_t cf)
         case LV_COLOR_FORMAT_RGB565:
             return VG_LITE_BGR565;
 
+        case LV_COLOR_FORMAT_RGB565_SWAPPED:
+            return VG_LITE_RGB565;
+
         case LV_COLOR_FORMAT_ARGB8565:
             return VG_LITE_BGRA5658;
 
@@ -543,6 +581,8 @@ vg_lite_buffer_format_t lv_vg_lite_vg_fmt(lv_color_format_t cf)
 
         case LV_COLOR_FORMAT_ARGB8888:
             return VG_LITE_BGRA8888;
+        case LV_COLOR_FORMAT_ARGB8888_PREMULTIPLIED:
+            return VG_sBGRA_8888_PRE;
 
         case LV_COLOR_FORMAT_XRGB8888:
             return VG_LITE_BGRX8888;
@@ -605,6 +645,7 @@ void lv_vg_lite_buffer_format_bytes(
         case VG_LITE_BGRX8888:
         case VG_LITE_XBGR8888:
         case VG_LITE_XRGB8888:
+        case VG_sBGRA_8888_PRE:
             *mul = 4;
             break;
         case VG_LITE_NV12:
@@ -785,13 +826,20 @@ vg_lite_color_t lv_vg_lite_image_recolor(vg_lite_buffer_t * buffer, const lv_dra
     LV_ASSERT_NULL(buffer);
     LV_ASSERT_NULL(dsc);
 
-    if((buffer->format == VG_LITE_A4 || buffer->format == VG_LITE_A8) || dsc->recolor_opa > LV_OPA_TRANSP) {
-        /* alpha image and image recolor */
+    /* alpha image and image recolor */
+    if(buffer->format == VG_LITE_A4 || buffer->format == VG_LITE_A8) {
+        /*Alpha only image ignore recolor opa*/
         buffer->image_mode = VG_LITE_MULTIPLY_IMAGE_MODE;
-        return lv_vg_lite_color(dsc->recolor, LV_OPA_MIX2(dsc->opa, dsc->recolor_opa), true);
+        return lv_vg_lite_color(dsc->recolor, dsc->opa, true);
     }
-
-    if(dsc->opa < LV_OPA_COVER) {
+    else if(dsc->recolor_opa > LV_OPA_TRANSP) {
+        buffer->image_mode = VG_LITE_MULTIPLY_IMAGE_MODE;
+        /** The 0xff value in a color channel (R/G/B) maintains that channel's maximum intensity,
+         *  effectively preserving its original color contribution when used in blending operations.*/
+        lv_color_t recolor = lv_color_mix(dsc->recolor, lv_color_make(0xff, 0xff, 0xff), dsc->recolor_opa);
+        return lv_vg_lite_color(recolor, dsc->opa, true);
+    }
+    else if(dsc->opa < LV_OPA_COVER) {
         /* normal image opa */
         buffer->image_mode = VG_LITE_MULTIPLY_IMAGE_MODE;
         vg_lite_color_t color;
@@ -815,7 +863,10 @@ bool lv_vg_lite_buffer_open_image(vg_lite_buffer_t * buffer, lv_image_decoder_ds
     args.stride_align = true;
     args.use_indexed = true;
     args.no_cache = no_cache;
-    args.flush_cache = true;
+
+    /** For images output by the GPU itself (such as draw layer),
+     *  there is no need to flush the cache */
+    args.flush_cache = !no_cache;
 
     lv_result_t res = lv_image_decoder_open(decoder_dsc, src, &args);
     if(res != LV_RESULT_OK) {
@@ -839,7 +890,7 @@ bool lv_vg_lite_buffer_open_image(vg_lite_buffer_t * buffer, lv_image_decoder_ds
     if(LV_COLOR_FORMAT_IS_INDEXED(decoded->header.cf)) {
         uint32_t palette_size = LV_COLOR_INDEXED_PALETTE_SIZE(decoded->header.cf);
         LV_PROFILER_DRAW_BEGIN_TAG("vg_lite_set_CLUT");
-        LV_VG_LITE_CHECK_ERROR(vg_lite_set_CLUT(palette_size, (vg_lite_uint32_t *)decoded->data));
+        LV_VG_LITE_CHECK_ERROR(vg_lite_set_CLUT(palette_size, (vg_lite_uint32_t *)decoded->data), {});
         LV_PROFILER_DRAW_END_TAG("vg_lite_set_CLUT");
     }
 
@@ -1128,7 +1179,7 @@ bool lv_vg_lite_16px_align(void)
 
 void lv_vg_lite_matrix_multiply(vg_lite_matrix_t * matrix, const vg_lite_matrix_t * mult)
 {
-    vg_lite_matrix_t temp;
+    lv_matrix_t temp;
     int row, column;
     vg_lite_float_t (*m)[3] = matrix->m;
 
@@ -1143,8 +1194,8 @@ void lv_vg_lite_matrix_multiply(vg_lite_matrix_t * matrix, const vg_lite_matrix_
         }
     }
 
-    /* Copy temporary matrix into result. */
-    *matrix = temp;
+    /* Copy temporary 3x3 matrix into result. */
+    *(lv_matrix_t *)matrix = temp;
 }
 
 bool lv_vg_lite_matrix_inverse(vg_lite_matrix_t * result, const vg_lite_matrix_t * matrix)
@@ -1224,13 +1275,18 @@ void lv_vg_lite_set_scissor_area(const lv_area_t * area)
      * for the render target. This scissor API is supported by a different hardware mechanism other than the mask layer,
      * and it is not enabled/disabled by vg_lite_enable_scissor and vg_lite_disable_scissor APIs.
      */
-    LV_VG_LITE_CHECK_ERROR(vg_lite_enable_scissor());
+    LV_VG_LITE_CHECK_ERROR(vg_lite_enable_scissor(), {});
 #endif
     LV_VG_LITE_CHECK_ERROR(vg_lite_set_scissor(
                                area->x1,
                                area->y1,
                                area->x2 + 1,
-                               area->y2 + 1));
+                               area->y2 + 1),
+                           /* Error handler */
+    {
+        LV_LOG_ERROR("area: %d, %d, %d, %d",
+                     (int)area->x1, (int)area->y1, (int)area->x2, (int)area->y2);
+    });
     LV_PROFILER_DRAW_END;
 }
 
@@ -1242,7 +1298,11 @@ void lv_vg_lite_disable_scissor(void)
                                0,
                                0,
                                LV_HOR_RES,
-                               LV_VER_RES));
+                               LV_VER_RES),
+                           /* Error handler */
+    {
+        LV_LOG_ERROR("hor_res: %d, ver_res: %d", (int)LV_HOR_RES, (int)LV_VER_RES);
+    });
     LV_PROFILER_DRAW_END;
 }
 
@@ -1262,7 +1322,7 @@ void lv_vg_lite_flush(struct _lv_draw_vg_lite_unit_t * u)
     }
 #else
     vg_lite_uint32_t is_gpu_idle = 0;
-    LV_VG_LITE_CHECK_ERROR(vg_lite_get_parameter(VG_LITE_GPU_IDLE_STATE, 1, (vg_lite_pointer)&is_gpu_idle));
+    LV_VG_LITE_CHECK_ERROR(vg_lite_get_parameter(VG_LITE_GPU_IDLE_STATE, 1, (vg_lite_pointer)&is_gpu_idle), {});
     if(!is_gpu_idle) {
         /* Do not flush if GPU is busy */
         LV_PROFILER_DRAW_END;
@@ -1270,7 +1330,17 @@ void lv_vg_lite_flush(struct _lv_draw_vg_lite_unit_t * u)
     }
 #endif
 
-    LV_VG_LITE_CHECK_ERROR(vg_lite_flush());
+    LV_VG_LITE_CHECK_ERROR(vg_lite_flush(), {});
+
+    /* Remove all old caches reference and swap new caches reference */
+#if LV_USE_VECTOR_GRAPHIC
+    lv_vg_lite_pending_swap(lv_vg_lite_grad_ctx_get_pending(u->grad_ctx));
+#endif
+
+    lv_vg_lite_pending_swap(u->image_dsc_pending);
+
+    lv_vg_lite_pending_swap(u->bitmap_font_pending);
+
     u->flush_count = 0;
     LV_PROFILER_DRAW_END;
 }
@@ -1280,15 +1350,19 @@ void lv_vg_lite_finish(struct _lv_draw_vg_lite_unit_t * u)
     LV_ASSERT_NULL(u);
     LV_PROFILER_DRAW_BEGIN;
 
-    LV_VG_LITE_CHECK_ERROR(vg_lite_finish());
+    LV_VG_LITE_CHECK_ERROR(vg_lite_finish(), {});
 
+#if LV_USE_VECTOR_GRAPHIC
     /* Clear all gradient caches reference */
-    if(u->grad_pending) {
-        lv_vg_lite_pending_remove_all(u->grad_pending);
-    }
+    lv_vg_lite_pending_remove_all(lv_vg_lite_grad_ctx_get_pending(u->grad_ctx));
+#endif
 
     /* Clear image decoder dsc reference */
     lv_vg_lite_pending_remove_all(u->image_dsc_pending);
+
+    /* Clear bitmap font dsc reference */
+    lv_vg_lite_pending_remove_all(u->bitmap_font_pending);
+
     u->flush_count = 0;
     u->letter_count = 0;
     LV_PROFILER_DRAW_END;

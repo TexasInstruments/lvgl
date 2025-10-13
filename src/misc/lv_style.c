@@ -137,6 +137,8 @@ const uint8_t lv_style_builtin_prop_flag_lookup_table[LV_STYLE_NUM_BUILT_IN_PROP
     [LV_STYLE_LAYOUT] =                    LV_STYLE_PROP_FLAG_LAYOUT_UPDATE,
     [LV_STYLE_BASE_DIR] =                  LV_STYLE_PROP_FLAG_INHERITABLE | LV_STYLE_PROP_FLAG_LAYOUT_UPDATE,
     [LV_STYLE_BITMAP_MASK_SRC] =           LV_STYLE_PROP_FLAG_LAYER_UPDATE,
+    [LV_STYLE_RECOLOR] = 0,
+    [LV_STYLE_RECOLOR_OPA] = 0,
 
 #if LV_USE_FLEX
     [LV_STYLE_FLEX_FLOW] =                    LV_STYLE_PROP_FLAG_LAYOUT_UPDATE,
@@ -196,6 +198,36 @@ void lv_style_reset(lv_style_t * style)
 #if LV_USE_ASSERT_STYLE
     style->sentinel = LV_STYLE_SENTINEL_VALUE;
 #endif
+}
+
+
+void lv_style_copy(lv_style_t * dst, const lv_style_t * src)
+{
+    if(lv_style_is_const(dst)) {
+        LV_LOG_WARN("The destination can not be a constant style");
+        return;
+    }
+
+    lv_style_reset(dst);
+
+    /*Source is empty*/
+    if(src->values_and_props == NULL) return;
+    if(src->prop_cnt == 0) return;
+
+    int32_t i;
+    if(lv_style_is_const(src)) {
+        lv_style_const_prop_t * props_and_values = (lv_style_const_prop_t *)src->values_and_props;
+        for(i = 0; props_and_values[i].prop != LV_STYLE_PROP_INV; i++) {
+            lv_style_set_prop(dst, props_and_values[i].prop, props_and_values[i].value);
+        }
+    }
+    else {
+        lv_style_prop_t * props = (lv_style_prop_t *)src->values_and_props + src->prop_cnt * sizeof(lv_style_value_t);
+        lv_style_value_t * values = (lv_style_value_t *)src->values_and_props;
+        for(i = 0; i < src->prop_cnt; i++) {
+            lv_style_set_prop(dst, props[i], values[i]);
+        }
+    }
 }
 
 lv_style_prop_t lv_style_register_prop(uint8_t flag)
@@ -385,6 +417,7 @@ lv_style_value_t lv_style_prop_get_default(lv_style_prop_t prop)
         case LV_STYLE_LINE_COLOR:
         case LV_STYLE_TEXT_COLOR:
         case LV_STYLE_IMAGE_RECOLOR:
+        case LV_STYLE_RECOLOR:
             return (lv_style_value_t) {
                 .color = black
             };

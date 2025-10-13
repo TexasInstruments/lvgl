@@ -118,7 +118,8 @@ void lv_text_get_size(lv_point_t * size_res, const char * text, const lv_font_t 
         }
 
         /*Calculate the longest line*/
-        int32_t act_line_length = lv_text_get_width(&text[line_start], new_line_start - line_start, font, letter_space);
+        int32_t act_line_length = lv_text_get_width_with_flags(&text[line_start], new_line_start - line_start, font,
+                                                               letter_space, flag);
 
         size_res->x = LV_MAX(act_line_length, size_res->x);
         line_start  = new_line_start;
@@ -429,7 +430,7 @@ int32_t lv_text_get_width_with_flags(const char * txt, uint32_t length, const lv
     lv_text_cmd_state_t cmd_state = LV_TEXT_CMD_STATE_WAIT;
 
     if(length != 0) {
-        while(i < length) {
+        while(txt[i] != '\0' && i < length) {
             uint32_t letter;
             uint32_t letter_next;
             lv_text_encoded_letter_next_2(txt, &letter, &letter_next, &i);
@@ -648,6 +649,11 @@ static uint32_t lv_text_utf8_next(const char * txt, uint32_t * i)
     /*Dummy 'i' pointer is required*/
     uint32_t i_tmp = 0;
     if(i == NULL) i = &i_tmp;
+
+    /* Ensure the string is not null */
+    if(txt == NULL || txt[*i] == '\0') {
+        return result;
+    }
 
     /*Normal ASCII*/
     if(LV_IS_ASCII(txt[*i])) {
