@@ -42,10 +42,8 @@
 void lv_xml_parser_state_init(lv_xml_parser_state_t * state)
 {
     lv_memzero(state, sizeof(lv_xml_parser_state_t));
-    lv_ll_init(&state->ctx.style_ll, sizeof(lv_xml_style_t));
-    lv_ll_init(&state->ctx.const_ll, sizeof(lv_xml_const_t));
-    lv_ll_init(&state->ctx.param_ll, sizeof(lv_xml_param_t));
     lv_ll_init(&state->parent_ll, sizeof(lv_obj_t *));
+    lv_xml_component_scope_init(&state->scope);
 }
 
 void lv_xml_parser_start_section(lv_xml_parser_state_t * state, const char * name)
@@ -55,12 +53,32 @@ void lv_xml_parser_start_section(lv_xml_parser_state_t * state, const char * nam
         state->section = LV_XML_PARSER_SECTION_API;
         return;
     }
+    if(lv_streq(name, "gradients")) {
+        state->section = LV_XML_PARSER_SECTION_GRAD;
+        return;
+    }
+    if(state->section == LV_XML_PARSER_SECTION_GRAD && lv_streq(name, "stop")) {
+        state->section = LV_XML_PARSER_SECTION_GRAD_STOP;
+        return;
+    }
     else if(lv_streq(name, "consts")) {
         state->section = LV_XML_PARSER_SECTION_CONSTS;
         return;
     }
     else if(lv_streq(name, "styles")) {
         state->section = LV_XML_PARSER_SECTION_STYLES;
+        return;
+    }
+    else if(lv_streq(name, "images")) {
+        state->section = LV_XML_PARSER_SECTION_IMAGES;
+        return;
+    }
+    else if(lv_streq(name, "fonts")) {
+        state->section = LV_XML_PARSER_SECTION_FONTS;
+        return;
+    }
+    else if(lv_streq(name, "subjects")) {
+        state->section = LV_XML_PARSER_SECTION_SUBJECTS;
         return;
     }
     else if(lv_streq(name, "view")) {
@@ -75,9 +93,16 @@ void lv_xml_parser_end_section(lv_xml_parser_state_t * state, const char * name)
     /* Reset context when leaving a block */
     if(lv_streq(name, "params") ||
        lv_streq(name, "consts") ||
+       lv_streq(name, "gradients") ||
        lv_streq(name, "styles") ||
        lv_streq(name, "view")) {
         state->section = LV_XML_PARSER_SECTION_NONE;
+    }
+
+    /*When processing gradient stops, but not a stop was closed got bacg to gradient processing
+     * E.g. </linear_gradient>*/
+    if(state->section == LV_XML_PARSER_SECTION_GRAD_STOP && !lv_streq(name, "stop")) {
+        state->section = LV_XML_PARSER_SECTION_GRAD;
     }
 }
 
