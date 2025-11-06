@@ -30,6 +30,7 @@
 
 lv_obj_t *label;
 lv_obj_t *btn;
+static lv_obj_t * g_spinner = NULL;
 pthread_t gst_thread;
 volatile int running = 0;
 const char* fifo_path = "/tmp/gst_output_fifo";
@@ -53,6 +54,8 @@ int device_count = 0;
  **********************/
 
 static void back_clicked_cb(lv_event_t * e);
+static void _rebuild_device_ui(lv_obj_t * parent, lv_demo_high_res_ctx_t * c);
+static void _gst_started_cb(void *data);
 
 /**********************
  *  STATIC VARIABLES
@@ -173,6 +176,8 @@ void* gst_launch_thread(void *arg) {
         return NULL;
     }
 
+    lv_async_call(_gst_started_cb, NULL);
+
     // Read from the named pipe
     while (running && fgets(buffer, sizeof(buffer), fdopen(fifo_fd, "r")) != NULL) {
         buffer[strcspn(buffer, "$")] = 0;
@@ -190,45 +195,33 @@ static void btn_click_event(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *btn = lv_event_get_target(e);
+    lv_obj_t * device_ui_container = lv_event_get_user_data(e);
+    lv_obj_t * base_obj = lv_obj_get_parent(lv_obj_get_parent(device_ui_container));
+    lv_demo_high_res_ctx_t * c = lv_obj_get_user_data(base_obj);
 
     if (code == LV_EVENT_CLICKED) {
         if (!running) {
-            char *devices = get_arecord_devices();
-            if (devices) free(devices);
+            get_arecord_devices();
 
             if (g_no_device_ui && device_count > 0) {
-                update_label_text("Device detected. Please go back and re-open this page to select it.");
-                return;
+                _rebuild_device_ui(device_ui_container, c);
             }
 
             if (device_count == 0) {
                 update_label_text("No capture device found!");
-                if (g_selected_device) {
-                    free(g_selected_device);
-                    g_selected_device = NULL;
-                }
                 return;
             }
 
-            bool is_valid = false;
-            if (g_selected_device) {
-                for (int i = 0; i < device_count; i++) {
-                    if (strcmp(g_selected_device, audio_devices[i].alsa_device) == 0) {
-                        is_valid = true;
-                        break;
-                    }
-                }
+            if (!g_selected_device) {
+                 g_selected_device = strdup(audio_devices[0].alsa_device);
             }
 
-            if (!is_valid) {
-                if (g_selected_device) {
-                    free(g_selected_device);
-                }
-                g_selected_device = strdup(audio_devices[0].alsa_device);
-            }
             running = 1;
-            lv_label_set_text(lv_obj_get_child(btn, 0), "Stop");
-            update_label_text("Starting audio classification...");
+            update_label_text("");
+            lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_flag(g_spinner, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_state(btn, LV_STATE_DISABLED);
+            lv_label_set_text(lv_obj_get_child(btn, 0), "Starting...");
             pthread_create(&gst_thread, NULL, gst_launch_thread, NULL);
         } else {
             running = 0;
@@ -268,6 +261,107 @@ static void dropdown_event_handler(lv_event_t * e)
             running = 1;
             pthread_create(&gst_thread, NULL, gst_launch_thread, NULL);
         }
+    }
+}
+
+static void _gst_started_cb(void *data)
+{
+    LV_UNUSED(data);
+    lv_obj_add_flag(g_spinner, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_state(btn, LV_STATE_DISABLED);
+    lv_label_set_text(lv_obj_get_child(btn, 0), "Stop");
+    update_label_text("Listening for audio...");
+}
+
+static void _rebuild_device_ui(lv_obj_t * parent, lv_demo_high_res_ctx_t * c)
+{
+    lv_obj_clean(parent);
+
+    // Create dropdown label
+    lv_obj_t * dropdown_label = lv_label_create(parent);
+    lv_label_set_text(dropdown_label, "Select Audio Input Device:");
+    lv_obj_add_style(dropdown_label, &c->styles[STYLE_COLOR_BASE][STYLE_TYPE_TEXT], 0);
+    lv_obj_add_style(dropdown_label, &c->fonts[FONT_HEADING_MD], 0);
+    lv_obj_set_style_text_opa(dropdown_label, LV_OPA_80, 0);
+    lv_obj_align(dropdown_label, LV_ALIGN_TOP_MID, 0, 0);
+
+    // Create dropdown menu
+    char *devices = get_arecord_devices();
+    if (devices && device_count > 0) {
+        g_no_device_ui = false;
+        lv_obj_t * dropdown = lv_dropdown_create(parent);
+        lv_dropdown_set_options(dropdown, devices);
+
+        lv_obj_set_width(dropdown, 450);
+        lv_obj_set_height(dropdown, 45);
+        lv_obj_align(dropdown, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+        lv_obj_set_style_bg_color(dropdown, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(dropdown, LV_OPA_90, LV_PART_MAIN);
+        lv_obj_set_style_border_color(dropdown, lv_color_hex(0x00A2E8), LV_PART_MAIN);
+        lv_obj_set_style_border_width(dropdown, 2, LV_PART_MAIN);
+        lv_obj_set_style_border_opa(dropdown, LV_OPA_50, LV_PART_MAIN);
+        lv_obj_set_style_radius(dropdown, 8, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(dropdown, 10, LV_PART_MAIN);
+        lv_obj_set_style_shadow_color(dropdown, lv_color_hex(0x000000), LV_PART_MAIN);
+        lv_obj_set_style_shadow_opa(dropdown, LV_OPA_20, LV_PART_MAIN);
+        lv_obj_set_style_pad_left(dropdown, 15, LV_PART_MAIN);
+        lv_obj_set_style_pad_right(dropdown, 15, LV_PART_MAIN);
+        lv_obj_set_style_pad_top(dropdown, 10, LV_PART_MAIN);
+        lv_obj_set_style_pad_bottom(dropdown, 10, LV_PART_MAIN);
+        lv_obj_set_style_text_color(dropdown, lv_color_hex(0x333333), LV_PART_MAIN);
+        lv_obj_set_style_text_font(dropdown, &lv_font_montserrat_14, LV_PART_MAIN);
+
+        lv_obj_set_style_bg_color(dropdown, lv_color_hex(0xFFFFFF), LV_PART_SELECTED);
+        lv_obj_set_style_bg_opa(dropdown, LV_OPA_COVER, LV_PART_SELECTED);
+        lv_obj_set_style_text_color(dropdown, lv_color_hex(0x00A2E8), LV_PART_SELECTED);
+
+        lv_obj_t * list = lv_dropdown_get_list(dropdown);
+        if (list) {
+            lv_obj_set_style_bg_color(list, lv_color_hex(0xFFFFFF), 0);
+            lv_obj_set_style_bg_opa(list, LV_OPA_90, 0);
+            lv_obj_set_style_border_color(list, lv_color_hex(0x00A2E8), 0);
+            lv_obj_set_style_border_width(list, 2, 0);
+            lv_obj_set_style_radius(list, 8, 0);
+            lv_obj_set_style_shadow_width(list, 15, 0);
+            lv_obj_set_style_shadow_color(list, lv_color_hex(0x000000), 0);
+            lv_obj_set_style_shadow_opa(list, LV_OPA_30, 0);
+            lv_obj_set_style_pad_top(list, 8, 0);
+            lv_obj_set_style_pad_bottom(list, 8, 0);
+            lv_obj_set_style_pad_left(list, 5, 0);
+            lv_obj_set_style_pad_right(list, 5, 0);
+            lv_obj_set_style_max_height(list, 200, 0);
+            lv_obj_set_style_text_font(list, &lv_font_montserrat_14, 0);
+        }
+
+        lv_dropdown_set_dir(dropdown, LV_DIR_BOTTOM);
+        lv_dropdown_set_symbol(dropdown, LV_SYMBOL_DOWN);
+        lv_obj_add_event_cb(dropdown, dropdown_event_handler, LV_EVENT_VALUE_CHANGED, NULL);
+
+        if (!g_selected_device) {
+            g_selected_device = strdup(audio_devices[0].alsa_device);
+            printf("Default device: %s (ALSA: %s)\n",
+                   audio_devices[0].display_name,
+                   audio_devices[0].alsa_device);
+        }
+
+        free(devices);
+    } else {
+        g_no_device_ui = true;
+        if(g_selected_device) {
+            free(g_selected_device);
+            g_selected_device = NULL;
+        }
+        lv_obj_t * error_label = lv_label_create(parent);
+        lv_label_set_text(error_label, "No capture devices found !!");
+        lv_obj_add_style(error_label, &c->styles[STYLE_COLOR_BASE][STYLE_TYPE_TEXT], 0);
+        lv_obj_add_style(error_label, &c->fonts[FONT_HEADING_MD], 0);
+        lv_obj_set_style_text_color(error_label, lv_color_hex(0xFF6B6B), 0);
+        lv_obj_align(error_label, LV_ALIGN_CENTER, 0, 0);
+        lv_obj_set_style_text_align(error_label, LV_TEXT_ALIGN_CENTER, 0);
+
+        if (devices) free(devices);
     }
 }
 
@@ -321,85 +415,11 @@ void lv_demo_high_res_app_edgeai(lv_obj_t * base_obj)
     lv_obj_add_style(app_label, &c->styles[STYLE_COLOR_BASE][STYLE_TYPE_TEXT], 0);
     lv_obj_add_style(app_label, &c->fonts[FONT_HEADING_LG], 0);
 
-    // Create dropdown label
-    lv_obj_t * dropdown_label = lv_label_create(bg_cont);
-    lv_label_set_text(dropdown_label, "Select Audio Input Device:");
-    lv_obj_add_style(dropdown_label, &c->styles[STYLE_COLOR_BASE][STYLE_TYPE_TEXT], 0);
-    lv_obj_add_style(dropdown_label, &c->fonts[FONT_HEADING_MD], 0);
-    lv_obj_set_style_text_opa(dropdown_label, LV_OPA_80, 0);
-    lv_obj_align(dropdown_label, LV_ALIGN_CENTER, 0, -130);
-
-    // Create dropdown menu
-    char *devices = get_arecord_devices();
-    if (devices && device_count > 0) {
-        g_no_device_ui = false;
-        lv_obj_t * dropdown = lv_dropdown_create(bg_cont);
-        lv_dropdown_set_options(dropdown, devices);
-        
-        lv_obj_set_width(dropdown, 450);
-        lv_obj_set_height(dropdown, 45);
-        lv_obj_align(dropdown, LV_ALIGN_CENTER, 0, -85);
-        
-        lv_obj_set_style_bg_color(dropdown, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(dropdown, LV_OPA_90, LV_PART_MAIN);
-        lv_obj_set_style_border_color(dropdown, lv_color_hex(0x00A2E8), LV_PART_MAIN);
-        lv_obj_set_style_border_width(dropdown, 2, LV_PART_MAIN);
-        lv_obj_set_style_border_opa(dropdown, LV_OPA_50, LV_PART_MAIN);
-        lv_obj_set_style_radius(dropdown, 8, LV_PART_MAIN);
-        lv_obj_set_style_shadow_width(dropdown, 10, LV_PART_MAIN);
-        lv_obj_set_style_shadow_color(dropdown, lv_color_hex(0x000000), LV_PART_MAIN);
-        lv_obj_set_style_shadow_opa(dropdown, LV_OPA_20, LV_PART_MAIN);
-        lv_obj_set_style_pad_left(dropdown, 15, LV_PART_MAIN);
-        lv_obj_set_style_pad_right(dropdown, 15, LV_PART_MAIN);
-        lv_obj_set_style_pad_top(dropdown, 10, LV_PART_MAIN);
-        lv_obj_set_style_pad_bottom(dropdown, 10, LV_PART_MAIN);
-        lv_obj_set_style_text_color(dropdown, lv_color_hex(0x333333), LV_PART_MAIN);
-        lv_obj_set_style_text_font(dropdown, &lv_font_montserrat_14, LV_PART_MAIN);
-        
-        lv_obj_set_style_bg_color(dropdown, lv_color_hex(0xFFFFFF), LV_PART_SELECTED);
-        lv_obj_set_style_bg_opa(dropdown, LV_OPA_COVER, LV_PART_SELECTED);
-        lv_obj_set_style_text_color(dropdown, lv_color_hex(0x00A2E8), LV_PART_SELECTED);
-        
-        lv_obj_t * list = lv_dropdown_get_list(dropdown);
-        if (list) {
-            lv_obj_set_style_bg_color(list, lv_color_hex(0xFFFFFF), 0);
-            lv_obj_set_style_bg_opa(list, LV_OPA_90, 0);
-            lv_obj_set_style_border_color(list, lv_color_hex(0x00A2E8), 0);
-            lv_obj_set_style_border_width(list, 2, 0);
-            lv_obj_set_style_radius(list, 8, 0);
-            lv_obj_set_style_shadow_width(list, 15, 0);
-            lv_obj_set_style_shadow_color(list, lv_color_hex(0x000000), 0);
-            lv_obj_set_style_shadow_opa(list, LV_OPA_30, 0);
-            lv_obj_set_style_pad_top(list, 8, 0);
-            lv_obj_set_style_pad_bottom(list, 8, 0);
-            lv_obj_set_style_pad_left(list, 5, 0);
-            lv_obj_set_style_pad_right(list, 5, 0);
-            lv_obj_set_style_max_height(list, 200, 0);
-            lv_obj_set_style_text_font(list, &lv_font_montserrat_14, 0);
-        }
-        
-        lv_dropdown_set_dir(dropdown, LV_DIR_BOTTOM);
-        lv_dropdown_set_symbol(dropdown, LV_SYMBOL_DOWN);
-        lv_obj_add_event_cb(dropdown, dropdown_event_handler, LV_EVENT_VALUE_CHANGED, NULL);
-        
-        g_selected_device = strdup(audio_devices[0].alsa_device);
-        printf("Default device: %s (ALSA: %s)\n", 
-               audio_devices[0].display_name, 
-               audio_devices[0].alsa_device);
-        
-        free(devices);
-    } else {
-        g_no_device_ui = true;
-        lv_obj_t * error_label = lv_label_create(bg_cont);
-        lv_label_set_text(error_label, "No capture devices found !!");
-        lv_obj_add_style(error_label, &c->styles[STYLE_COLOR_BASE][STYLE_TYPE_TEXT], 0);
-        lv_obj_add_style(error_label, &c->fonts[FONT_HEADING_MD], 0);
-        lv_obj_set_style_text_color(error_label, lv_color_hex(0xFF6B6B), 0);
-        lv_obj_align(error_label, LV_ALIGN_CENTER, 0, -80);
-        lv_obj_set_style_text_align(error_label, LV_TEXT_ALIGN_CENTER, 0);
-        
-        if (devices) free(devices);
-    }
+    lv_obj_t * device_ui_container = lv_obj_create(bg_cont);
+    lv_obj_remove_style_all(device_ui_container);
+    lv_obj_set_size(device_ui_container, LV_PCT(80), 100);
+    lv_obj_align(device_ui_container, LV_ALIGN_CENTER, 0, -80);
+    _rebuild_device_ui(device_ui_container, c);
 
     /* Create a label */
     label = lv_label_create(bg_cont);
@@ -412,11 +432,17 @@ void lv_demo_high_res_app_edgeai(lv_obj_t * base_obj)
     lv_obj_set_width(label, 500);  // NEW: Set width
     lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);  // NEW: Center align
 
+    g_spinner = lv_spinner_create(bg_cont);
+    lv_spinner_set_anim_params(g_spinner, 1000, 60);
+    lv_obj_set_size(g_spinner, 50, 50);
+    lv_obj_add_flag(g_spinner, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_align(g_spinner, LV_ALIGN_CENTER, 0, 10);
+
     /* Create a button */
     btn = lv_btn_create(bg_cont);
     lv_obj_set_size(btn, 140, 55);  // MODIFIED: Changed from 120x50 to 140x55
     lv_obj_align(btn, LV_ALIGN_CENTER, 0, 100);
-    lv_obj_add_event_cb(btn, btn_click_event, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(btn, btn_click_event, LV_EVENT_CLICKED, device_ui_container);
 
     lv_obj_t *btn_label = lv_label_create(btn);
     lv_label_set_text(btn_label, "Play");
