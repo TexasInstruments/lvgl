@@ -87,10 +87,13 @@ uint32_t ti_get_cpu_load()
         if(!ti_read_proc_stats(ti_glob_prev_stats, TI_NUM_PROC_STAT_FIELDS))
             return ti_cpu_utilization;
         ti_is_first_time = 0;
+        return 0;
     }
 
     uint32_t cur_stats[TI_NUM_PROC_STAT_FIELDS] = {0};
-    ti_read_proc_stats(cur_stats, TI_NUM_PROC_STAT_FIELDS);
+    if(!ti_read_proc_stats(cur_stats, TI_NUM_PROC_STAT_FIELDS)) {
+        return ti_cpu_utilization;
+    }
 
     uint32_t total_time = 0;
 
@@ -98,6 +101,10 @@ uint32_t ti_get_cpu_load()
     for (int i = 0; i < TI_NUM_PROC_STAT_FIELDS; ++i) {
         diff_stats[i] = cur_stats[i] - ti_glob_prev_stats[i];
         total_time += diff_stats[i];
+    }
+
+    if (total_time == 0) {
+        return ti_cpu_utilization;
     }
 
     uint32_t busy_time = total_time - (diff_stats[TI_PROC_STAT_IDLE_FIELD] + diff_stats[TI_PROC_STAT_IOWAIT_FIELD]);
